@@ -1,0 +1,14 @@
+{
+ "fuente": "Arancel Integrado Aduanero — ARCA (serviciosweb.afip.gob.ar/aduana/arancelintegrado)",
+ "archivo": "nomenclador_09112026.txt",
+ "fecha": "2026-11-09",
+ "campos": [
+  "sim",
+  "DIE",
+  "DE",
+  "RE",
+  "DII",
+  "descripcion"
+ ],
+ "sims": 33232
+}

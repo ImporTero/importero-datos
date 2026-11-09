@@ -184,7 +184,7 @@
     'impuestos internos ni regímenes especiales (p. ej. la exclusión de percepciones para canasta básica y MiPyMEs con certificado, RG ARCA 5490, prorrogada al 31/12/2026 por la RG 5868). ' +
     'En exportación, el derecho y el reintegro se calculan sobre el FOB de forma simplificada. ' +
     'Alícuotas verificadas el ' + T.verificado.split('-').reverse().join('/') + ': tasa de estadística — ' + T.tasaEst.fuente + ' Percepción de IVA — ' + T.percIva.fuente + ' Percepción de Ganancias — ' + T.percGan.fuente +
-    ' Derechos y reintegros de productos analizados: VUCE. Confirmá los números con tu despachante antes de operar.';
+    ' Derechos y reintegros: VUCE (productos analizados) y Arancel Integrado de ARCA (resto de las posiciones). Confirmá los números con tu despachante antes de operar.';
 
   ['ic-fob', 'ic-flete', 'ic-der', 'ic-iva', 'ic-cond', 'ic-merco', 'ic-desp', 'ic-gastos', 'ic-iibb', 'ic-tc', 'ic-de', 'ic-re'].forEach(function (id) {
     $(id).addEventListener('input', calc); $(id).addEventListener('change', calc);
@@ -224,11 +224,36 @@
     }
     calc();
   }
-  function usarNcm(code, aec) {
-    setModo('impo'); $('ic-der').value = aec;
-    hint('Posición ' + code.slice(0, 4) + '.' + code.slice(4, 6) + '.' + code.slice(6) + ': arancel externo común ' + pc(aec) + '% (Arancel Integrado de ARCA). El derecho real puede ser distinto: confirmalo con tu despachante.');
-    calc();
+  // Arancel Integrado de ARCA por capítulo (oficial): derecho de importación, de exportación y reintegro por SIM
+  var ARANCEL = DATOS.replace('productos.json', 'arancel/'), capCache = {};
+  function cargarCap(cap, cb) {
+    if (capCache[cap]) return cb(capCache[cap]);
+    fetch(ARANCEL + cap + '.json').then(function (r) { return r.json(); }).then(function (d) { capCache[cap] = d; cb(d); }).catch(function () { cb(null); });
   }
+  window.ImporteroArancel = { cargarCap: cargarCap, fuente: 'Arancel Integrado de ARCA (archivo del 09/11/2026)' };
+  function fmt8(code) { code = String(code).replace(/\./g, ''); return code.slice(0, 4) + '.' + code.slice(4, 6) + '.' + code.slice(6, 8); }
+  function usarNcm(code, aec, op) {
+    var k = fmt8(code);
+    cargarCap(k.slice(0, 2), function (d) {
+      var e = d && d[k], sims = e ? e.s : [];
+      if (!sims.length) {
+        setModo('impo'); $('ic-der').value = aec;
+        hint('Posición ' + k + ': arancel externo común ' + pc(aec) + '%. El derecho real puede ser distinto: confirmalo con tu despachante.');
+        return calc();
+      }
+      var dies = sims.map(function (x) { return x[1]; }).filter(function (v, i, a) { return a.indexOf(v) === i; });
+      if (op === 'expo') {
+        var c = sims[0]; setModo('expo'); $('ic-de').value = c[2]; $('ic-re').value = c[3];
+        var res = sims.map(function (x) { return x[3]; }).filter(function (v, i, a) { return a.indexOf(v) === i; });
+        hint('Posición ' + k + ': derecho de exportación ' + pc(c[2]) + '% y reintegro ' + pc(c[3]) + '% (SIM ' + c[0] + ', Arancel Integrado de ARCA).' + (res.length > 1 ? ' Según envase o variedad el reintegro va de ' + pc(Math.min.apply(null, res)) + '% a ' + pc(Math.max.apply(null, res)) + '%.' : ''), true);
+      } else {
+        setModo('impo'); $('ic-der').value = sims[0][1];
+        hint('Posición ' + k + ': derecho de importación ' + pc(sims[0][1]) + '% (SIM ' + sims[0][0] + ', Arancel Integrado de ARCA).' + (dies.length > 1 ? ' Según el producto exacto puede ser ' + dies.map(pc).join('%, ') + '%: mirá la ficha.' : ''), true);
+      }
+      calc();
+    });
+  }
+  window.ImporteroCalc = { usarNcm: usarNcm, ir: function () { root.scrollIntoView({ behavior: 'smooth', block: 'start' }); } };
 
   // Fichas de exportación (base.json): para rubros con guía pero sin producto (miel, granos, aceites…)
   var fichasExpo = null;
@@ -295,12 +320,5 @@
   // Sincronía con el buscador de arriba
   var bq = document.getElementById('ncm-q'), tb;
   if (bq) bq.addEventListener('input', function () { clearTimeout(tb); tb = setTimeout(function () { if (bq.value.trim().length >= 3) { $('ic-prod').value = bq.value.trim(); autocompletar(bq.value); } }, 700); });
-  var ncmRes = document.getElementById('ncm-res');
-  if (ncmRes) ncmRes.addEventListener('click', function (e) {
-    var r = e.target.closest('.ncm-row'); if (!r) return;
-    var code = (r.querySelector('.ncm-code') || {}).textContent || '', aec = parseFloat(((r.querySelector('.ncm-aec') || {}).textContent || '').replace(',', '.'));
-    if (code && !isNaN(aec)) { $('ic-prod').value = (r.querySelector('.ncm-desc') || {}).textContent || code; usarNcm(code.replace(/\./g, ''), aec); }
-  });
-
   setModo('impo');
 })();
