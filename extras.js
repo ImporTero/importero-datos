@@ -24,6 +24,12 @@
     bar.appendChild(a);
   }
 
+  // 1b) Búsqueda desde un link (/?q=...): lo usan las páginas de posiciones y productos
+  try {
+    var q0 = new URLSearchParams(location.search).get('q'), qi = document.getElementById('ncm-q');
+    if (q0 && qi) setTimeout(function () { qi.value = q0; qi.dispatchEvent(new Event('focus')); qi.dispatchEvent(new Event('input', { bubbles: true })); }, 300);
+  } catch (err) {}
+
   // 2) Todas las posiciones del nomenclador: ficha básica al tocar cada una + búsqueda aproximada si no hay resultados
   var ncmRes = document.getElementById('ncm-res'), ncmQ = document.getElementById('ncm-q');
   var VER = 'Arancel Integrado de ARCA, datos al 29/09/2026';
