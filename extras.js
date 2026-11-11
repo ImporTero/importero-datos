@@ -104,8 +104,11 @@
       '<dl><dt>Tasa de estadística</dt><dd>3% con tope (no paga si es de origen Mercosur)</dd>' +
       '<dt>IVA</dt><dd>21% o 10,5% según el producto, más percepciones</dd></dl>' +
       '<div class="warn">Derechos y reintegros: Arancel Integrado de ARCA, archivo del 09/11/2026. Esta posición todavía no la analizamos en detalle: los trámites e intervenciones (SENASA, ANMAT, seguridad eléctrica, etc.) los ves en VUCE, y la posición confirmala con tu despachante.</div>' +
-      '<div class="bt"><button type="button" class="pri" data-calc="' + code + '" data-aec="' + aec + '">Calcular importación</button>' +
-      '<button type="button" data-calc="' + code + '" data-aec="' + aec + '" data-op="expo">Calcular exportación</button>' +
+      (window.__op === 'exportacion'
+        ? '<div class="bt"><button type="button" class="pri" data-calc="' + code + '" data-aec="' + aec + '" data-op="expo">Calcular exportación</button>' +
+          '<button type="button" data-calc="' + code + '" data-aec="' + aec + '">Calcular importación</button>'
+        : '<div class="bt"><button type="button" class="pri" data-calc="' + code + '" data-aec="' + aec + '">Calcular importación</button>' +
+          '<button type="button" data-calc="' + code + '" data-aec="' + aec + '" data-op="expo">Calcular exportación</button>') +
       '<a href="' + vuce + '" target="_blank" rel="noopener">VUCE importar</a>' +
       '<a href="' + vuceE + '" target="_blank" rel="noopener">VUCE exportar</a>' +
       '<button type="button" data-pedir="' + code + '">' + (pedidos[code] ? 'Pedido ✓' : 'Pedir que la analicemos') + '</button></div></div>';
@@ -195,7 +198,7 @@
   function norm(s) { return (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim(); }
   fetch(DATOS).then(function (r) { return r.json(); }).then(function (d) {
     porNombre = {};
-    (d.productos || []).forEach(function (p) { porNombre[norm(p.producto)] = p; });
+    (d.productos || []).forEach(function (p) { porNombre[norm(p.producto)] = p; porNombre['#' + p.id] = p; });
     decorar();
   }).catch(function () {});
   function decorar() {
@@ -203,7 +206,7 @@
     [].forEach.call(caja.querySelectorAll('details.pf'), function (f) {
       if (f.querySelector('.it-guia')) return;
       var t = f.querySelector('.pf-t'), b = f.querySelector('.pf-b');
-      var p = t && porNombre[norm(t.textContent)];
+      var p = (f.dataset.id && porNombre['#' + f.dataset.id]) || (t && porNombre[norm(t.textContent)]);
       if (!p || !b) return;
       var g = (p.guias || [])[0];
       var link = document.createElement('a');
