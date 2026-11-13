@@ -18,15 +18,60 @@
   var root = document.getElementById('importero-calc');
   if (!root) return;
 
+  /* Gastos en Argentina: valores de REFERENCIA (no oficiales) de una cotización real de despachante,
+     noviembre de 2026, para 5 cajas (0,12 m³, 90 kg) desde China en LCL. Editables por la persona. */
+  var REF = { fecha: 'noviembre de 2026', flete: 200, seguro: 0.5, iibb: 3, gastos: [
+    ['desp', 'Honorarios del despachante', 250],
+    ['dep', 'Depósito fiscal', 250],
+    ['term', 'Terminal y puerto', 200],
+    ['ag', 'Agente de carga (documentos y desconsolidación)', 200],
+    ['op', 'Gastos operativos del despachante', 120],
+    ['banco', 'Banco (transferencia al exterior)', 200],
+    ['sim', 'Arancel SIM, guarda y digitalización', 38],
+    ['fi', 'Flete hasta tu depósito', 0]
+  ] };
+
+  /* Glosario: qué es cada cosa y de dónde sacar el número */
+  var G = {
+    cant: ['Cantidad', 'Las unidades del pedido. Sirve para ver cuánto te cuesta cada una y compararlo con el precio al que la vas a vender.', 'De la cotización del proveedor (el pedido mínimo suele estar ahí).'],
+    pu: ['Precio por unidad (FOB)', 'El precio de cada unidad con la mercadería cargada en el barco, en el puerto de salida: eso quiere decir FOB, “libre a bordo”. Si importás, es lo que le pagás al proveedor; si exportás, lo que te paga el comprador.', 'Si importás, de la cotización del proveedor (si te cotiza EXW, en fábrica, el traslado hasta el puerto ponelo en “Gastos en origen”). Si exportás, tu precio de venta.'],
+    orig: ['Gastos en origen', 'Lo que pagás aparte antes de que la carga salga del país de origen: traslado al puerto, inspección, documentos. Se suman al valor en aduana, así que también pagan impuestos.', 'Del proveedor o de tu agente de carga.'],
+    flete: ['Flete internacional', 'El transporte hasta Argentina. En pedidos chicos la carga viaja “LCL”: comparte contenedor con otras y se cobra por volumen (m³) o por peso.', 'Pedile cotización a un agente de carga (forwarder) con las medidas y el peso de las cajas. Referencia: USD ' + REF.flete + ' por 5 cajas (0,12 m³) desde China, ' + REF.fecha + '.'],
+    seg: ['Seguro', 'El seguro de la carga durante el viaje. Forma parte del valor en aduana.', 'Del agente de carga o de una aseguradora. Referencia: ' + String(REF.seguro).replace('.', ',') + '% de la mercadería más el flete.'],
+    va: ['Valor en aduana (CIF)', 'Mercadería + gastos en origen + flete + seguro. Es la base sobre la que la aduana calcula el derecho y la tasa de estadística.', 'Lo calculamos con lo que cargaste.'],
+    der: ['Derecho de importación', 'El impuesto de la aduana para ese producto. Depende de la posición arancelaria y va del 0% al 35%.', 'Se completa solo con el producto que escribas (VUCE o Arancel Integrado de ARCA). Confirmá la posición con tu despachante: si cambia la posición, cambia el derecho.'],
+    te: ['Tasa de estadística', '3% del valor en aduana, con un tope según el monto. Lo que viene de países del Mercosur no la paga.', 'Decreto 1140/2024. Ya está calculada.'],
+    iva: ['IVA', '21% (10,5% para algunos productos) sobre el valor en aduana más el derecho y la tasa.', 'La alícuota depende del producto. Si dudás, preguntale a tu despachante.'],
+    cond: ['¿Para qué importás?', 'Define qué parte de lo que pagás recuperás después. Si sos responsable inscripto y revendés, el IVA y las percepciones los descontás de tus impuestos. Si sos monotributista o es para vos, todo es costo.', 'Tu situación ante ARCA. Si no sabés cuál es, preguntale a tu contador.'],
+    iibb: ['Percepción de Ingresos Brutos', 'Un adelanto del impuesto provincial que se cobra en la aduana. Si estás inscripto, lo descontás después.', 'Depende de tu provincia y de tu inscripción: preguntale a tu contador. Referencia: ' + REF.iibb + '%.'],
+    gastos: ['Gastos en Argentina', 'Lo que pagás para sacar la mercadería de la aduana y traerla: despachante, depósito, terminal, agente de carga, banco. Son casi fijos: cuestan parecido con 5 cajas que con 50, por eso pesan mucho en los pedidos chicos. Estos servicios llevan IVA 21%, que si sos responsable inscripto recuperás.', 'Pedile a tu despachante una cotización con el peso, las medidas y el valor de tu carga. Los valores cargados son de una cotización real (' + REF.fecha + ', 5 cajas desde China): usalos solo como referencia.'],
+    tc: ['Dólar', 'Para ver los resultados en pesos.', 'El tipo de cambio vendedor del Banco Nación es la referencia que se usa en la aduana.'],
+    res: ['Plata que necesitás y costo real', '“Plata que necesitás” es todo lo que vas a pagar, incluido el IVA y las percepciones. “Costo real” es lo que te queda como costo después de recuperarlos. “Por unidad” es el costo real dividido la cantidad.', 'Son cálculos aproximados con lo que cargaste. Antes de comprar, pedile el número final a tu despachante.'],
+    de: ['Derecho de exportación', 'El impuesto que se paga al exportar ese producto. Muchos productos pagan 0%.', 'Se completa solo con el producto (VUCE o Arancel Integrado de ARCA).'],
+    re: ['Reintegro', 'Un porcentaje del valor que el Estado te devuelve por exportar. Llega meses después, no al cobrar.', 'Se completa solo con el producto (VUCE o Arancel Integrado de ARCA).'],
+    gexpo: ['Gastos al exportar', 'Despachante, puerto, documentos y certificados que pagás vos según cómo vendas (si vendés FOB, el flete lo paga el comprador).', 'Pedile cotización a tu despachante.']
+  };
+  function qb(k) { return '<button type="button" class="ic-q" data-gl="' + k + '" aria-label="Qué es ' + G[k][0] + '">?</button>'; }
+  function ayuda(k) { return '<div class="ic-help" id="ic-h-' + k + '" hidden><b>' + G[k][0] + '.</b> ' + G[k][1] + '<br><span>De dónde sacarlo: ' + G[k][2] + '</span></div>'; }
+  function campo(k, id, label, input, extra) { return '<div class="ic-f"' + (extra || '') + '><label for="' + id + '">' + label + ' ' + qb(k) + '</label>' + input + ayuda(k) + '</div>'; }
+  function num(id, v, step, min) { return '<input type="number" inputmode="decimal" id="' + id + '" min="' + (min || 0) + '" step="' + step + '" value="' + v + '">'; }
+
   var css = '' +
     '#importero-calc{--c-bg:var(--surface,#fff);--c-ink:var(--ink,#2B2119);--c-soft:var(--ink-soft,#5C4E40);--c-faint:var(--ink-faint,#8B7E6F);--c-line:var(--line,#DCD4C7);--c-green:var(--green,#1C592E);--c-gsoft:var(--green-soft,#E2EDE3);--c-amber:var(--amber,#8A6212);--c-asoft:var(--amber-soft,#F2E8D2);font-size:14.5px;color:var(--c-ink)}' +
     '#importero-calc *{box-sizing:border-box}' +
     '#importero-calc .ic-head h2{font-family:"Roboto Slab",Georgia,serif;font-size:clamp(22px,3vw,28px);margin:0 0 6px}' +
     '#importero-calc .ic-head p{color:var(--c-soft);margin:0 0 18px;line-height:1.5;max-width:64ch}' +
-    '#importero-calc .ic-grid{display:grid;grid-template-columns:minmax(0,340px) minmax(0,1fr);gap:22px;align-items:start}' +
+    '#importero-calc .ic-grid{display:grid;grid-template-columns:minmax(0,360px) minmax(0,1fr);gap:22px;align-items:start}' +
     '@media (max-width:780px){#importero-calc .ic-grid{grid-template-columns:1fr}}' +
     '#importero-calc .ic-card{border:1px solid var(--c-line);background:var(--c-bg);border-radius:6px;padding:16px}' +
+    '#importero-calc .ic-step{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--c-green);margin:16px 0 9px;padding-top:12px;border-top:1px solid var(--c-line);display:flex;gap:8px;align-items:center}' +
+    '#importero-calc .ic-step:first-of-type{border-top:0;padding-top:0;margin-top:4px}' +
+    '#importero-calc .ic-step b{display:inline-grid;place-items:center;width:19px;height:19px;border-radius:50%;background:var(--c-green);color:#fff;font-size:11px;letter-spacing:0}' +
     '#importero-calc label{display:block;font-size:12.5px;font-weight:600;color:var(--c-soft);margin:0 0 5px}' +
+    '#importero-calc .ic-q{display:inline-block;vertical-align:-3px;margin-left:4px;width:17px;height:17px;border-radius:50%;border:1px solid var(--c-faint);background:#fff;color:var(--c-soft);font:600 11px/1 "IBM Plex Sans",system-ui,sans-serif;cursor:pointer;padding:0;flex:none}' +
+    '#importero-calc .ic-q[aria-expanded=true]{background:var(--c-green);border-color:var(--c-green);color:#fff}' +
+    '#importero-calc .ic-help{font-size:12.5px;line-height:1.5;background:var(--c-gsoft);border-radius:5px;padding:9px 11px;margin-top:6px;color:var(--c-ink)}' +
+    '#importero-calc .ic-help span{color:var(--c-soft)}' +
     '#importero-calc .ic-f{margin-bottom:13px;position:relative}' +
     '#importero-calc .ic-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}' +
     '#importero-calc input,#importero-calc select{width:100%;padding:9px 10px;font-size:14px;border:1px solid var(--c-line);border-radius:4px;background:#fff;color:var(--c-ink);font-family:inherit}' +
@@ -36,72 +81,118 @@
     '#importero-calc .ic-mode{display:grid;grid-template-columns:1fr 1fr;border:1px solid var(--c-line);border-radius:5px;overflow:hidden;margin-bottom:14px}' +
     '#importero-calc .ic-mode button{border:0;background:#fff;padding:9px;font:inherit;font-weight:600;font-size:13.5px;color:var(--c-soft);cursor:pointer}' +
     '#importero-calc .ic-mode button.on{background:var(--c-green);color:#fff}' +
-    '#importero-calc .ic-sug{position:absolute;z-index:5;left:0;right:0;top:100%;background:#fff;border:1px solid var(--c-line);border-radius:4px;max-height:230px;overflow:auto;display:none}' +
+    '#importero-calc .ic-sug{position:absolute;z-index:5;left:0;right:0;top:62px;background:#fff;border:1px solid var(--c-line);border-radius:4px;max-height:230px;overflow:auto;display:none}' +
     '#importero-calc .ic-sug button{display:block;width:100%;text-align:left;border:0;background:none;padding:8px 10px;font:inherit;font-size:13.5px;cursor:pointer}' +
     '#importero-calc .ic-sug button small{color:var(--c-faint);margin-left:6px}' +
     '#importero-calc .ic-sug button:hover{background:var(--c-gsoft)}' +
-    '#importero-calc details{margin-top:6px;font-size:13px}#importero-calc summary{cursor:pointer;color:var(--c-green);font-weight:600;margin-bottom:10px}' +
+    '#importero-calc details{margin-top:4px;font-size:13px}#importero-calc summary{cursor:pointer;color:var(--c-green);font-weight:600;margin-bottom:10px}' +
     '#importero-calc .ic-chk{display:flex;gap:8px;align-items:center;font-weight:400;color:var(--c-ink);font-size:13.5px}#importero-calc .ic-chk input{width:auto}' +
-    '#importero-calc .ic-tiles{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}' +
-    '@media (max-width:480px){#importero-calc .ic-tiles{grid-template-columns:1fr}}' +
-    '#importero-calc .ic-tile{border:1px solid var(--c-line);border-radius:6px;padding:14px 16px}' +
+    '#importero-calc .ic-gl{display:grid;grid-template-columns:1fr 92px;gap:6px 10px;align-items:center;font-size:13px;margin:8px 0 4px}' +
+    '#importero-calc .ic-gl input{padding:6px 8px;font-size:13px}' +
+    '#importero-calc .ic-gsum{display:flex;justify-content:space-between;font-size:13px;color:var(--c-soft);margin-bottom:4px}' +
+    '#importero-calc .ic-gsum b{font-family:"IBM Plex Mono",monospace;color:var(--c-ink)}' +
+    '#importero-calc .ic-tiles{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:14px}' +
+    '@media (max-width:560px){#importero-calc .ic-tiles{grid-template-columns:1fr}}' +
+    '#importero-calc .ic-tile{border:1px solid var(--c-line);border-radius:6px;padding:12px 14px;background:#fff}' +
     '#importero-calc .ic-tile.cash{border-color:var(--c-amber);background:var(--c-asoft)}#importero-calc .ic-tile.real{border-color:var(--c-green);background:var(--c-gsoft)}' +
-    '#importero-calc .ic-lbl{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.05em;text-transform:uppercase;margin-bottom:5px}' +
+    '#importero-calc .ic-tile.unit{border-color:var(--c-ink)}' +
+    '#importero-calc .ic-lbl{font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;margin-bottom:5px}' +
     '#importero-calc .cash .ic-lbl{color:var(--c-amber)}#importero-calc .real .ic-lbl{color:var(--c-green)}' +
-    '#importero-calc .ic-amt{font-family:"IBM Plex Mono",monospace;font-size:clamp(20px,3vw,26px);font-weight:600}' +
-    '#importero-calc .ic-sub{font-size:12.5px;color:var(--c-soft);margin-top:4px;line-height:1.4}' +
+    '#importero-calc .ic-amt{font-family:"IBM Plex Mono",monospace;font-size:clamp(19px,2.6vw,24px);font-weight:600}' +
+    '#importero-calc .ic-sub{font-size:12px;color:var(--c-soft);margin-top:4px;line-height:1.4}' +
     '#importero-calc table{width:100%;border-collapse:collapse;font-size:13.5px}' +
     '#importero-calc td{padding:6px 0;border-bottom:1px solid var(--c-line);vertical-align:top}' +
     '#importero-calc td.n{text-align:right;font-family:"IBM Plex Mono",monospace;white-space:nowrap;padding-left:10px}' +
     '#importero-calc tr.t td{font-weight:700}#importero-calc tr.g td{padding-top:14px;font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--c-faint);border-bottom:0}' +
     '#importero-calc .cf{font-size:10.5px;color:var(--c-green);border:1px solid var(--c-green);border-radius:3px;padding:0 4px;margin-left:6px;white-space:nowrap}' +
     '#importero-calc .ic-note{font-size:12px;color:var(--c-faint);line-height:1.5;margin-top:12px}' +
-    '#importero-calc .ic-msg{font-size:13px;line-height:1.5;background:var(--c-gsoft);border-radius:5px;padding:10px 12px;margin-bottom:14px}' +
+    '#importero-calc .ic-msg{font-size:13px;line-height:1.5;background:var(--c-gsoft);border-radius:5px;padding:10px 12px;margin-bottom:10px}' +
+    '#importero-calc .ic-msg.warn{background:var(--c-asoft)}' +
+    '#importero-calc .ic-glos{margin-top:26px;border-top:1px solid var(--c-line);padding-top:18px}' +
+    '#importero-calc .ic-glos h3{font-family:"Roboto Slab",Georgia,serif;font-size:19px;margin:0 0 4px}' +
+    '#importero-calc .ic-glos>p{color:var(--c-soft);margin:0 0 12px;font-size:13.5px}' +
+    '#importero-calc .ic-glos dl{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px;margin:0}' +
+    '#importero-calc .ic-glos div{border:1px solid var(--c-line);border-radius:6px;background:#fff;padding:11px 13px}' +
+    '#importero-calc .ic-glos dt{font-weight:700;font-size:13.5px;margin-bottom:4px}' +
+    '#importero-calc .ic-glos dd{margin:0;font-size:13px;line-height:1.5;color:var(--c-ink)}' +
+    '#importero-calc .ic-glos dd span{display:block;margin-top:5px;color:var(--c-soft)}' +
     '#importero-calc [hidden]{display:none!important}';
   var st = document.createElement('style'); st.textContent = css; document.head.appendChild(st);
 
+  var gl = REF.gastos.map(function (g) { return '<span>' + g[1] + '</span>' + num('ic-g-' + g[0], g[2], 10); }).join('');
   root.innerHTML = '' +
     '<div class="ic-head"><h2>Calculá cuánto te sale (o cuánto te queda)</h2>' +
-    '<p>Un aproximado en pocos datos. Lo que escribas en el buscador de arriba se completa acá solo: la operación, el derecho y, si exportás, el reintegro.</p></div>' +
+    '<p>Completá los pasos. Lo que escribas en el buscador de arriba se carga acá solo. Tocá <b>?</b> en cada dato para ver qué es y de dónde sacarlo.</p></div>' +
     '<div class="ic-grid"><form class="ic-card" onsubmit="return false">' +
       '<div class="ic-mode" role="tablist"><button type="button" data-m="impo" class="on">Importar</button><button type="button" data-m="expo">Exportar</button></div>' +
+      '<div class="ic-step"><b>1</b>Qué ' + '<span data-only="impo">traés</span><span data-only="expo" hidden>vendés</span></div>' +
       '<div class="ic-f"><label for="ic-prod">Producto</label>' +
-        '<input id="ic-prod" autocomplete="off" placeholder="Ej.: anafe, miel, maní…"><div class="ic-sug" id="ic-sug"></div>' +
-        '<div class="ic-hint" id="ic-prod-hint">Si no lo encontramos, completá el derecho a mano.</div></div>' +
-      '<div class="ic-f"><label for="ic-fob" id="ic-fob-l">Valor de la mercadería (FOB, USD)</label><input type="number" id="ic-fob" min="0" step="100" value="5000"></div>' +
-      '<div class="ic-f" data-only="impo"><label for="ic-flete">Flete y seguro (USD)</label><input type="number" id="ic-flete" min="0" step="50" value="750">' +
-        '<div class="ic-hint">Si todavía no cotizaste, poné un estimado: es una suposición tuya, no un dato.</div></div>' +
-      '<div class="ic-row" data-only="impo"><div class="ic-f"><label for="ic-der">Derecho (%)</label><input type="number" id="ic-der" min="0" max="35" step="0.1" value="16"></div>' +
-        '<div class="ic-f"><label for="ic-iva">IVA</label><select id="ic-iva"><option value="21">21%</option><option value="10.5">10,5%</option></select></div></div>' +
-      '<div class="ic-row" data-only="expo" hidden><div class="ic-f"><label for="ic-de">Derecho expo (%)</label><input type="number" id="ic-de" min="0" max="40" step="0.1" value="0"></div>' +
-        '<div class="ic-f"><label for="ic-re">Reintegro (%)</label><input type="number" id="ic-re" min="0" max="10" step="0.05" value="0"></div></div>' +
-      '<div class="ic-f" data-only="impo"><label for="ic-cond">¿Para qué importás?</label><select id="ic-cond">' +
-        '<option value="reventa">Para revender (responsable inscripto)</option>' +
-        '<option value="uso">Bien de uso de mi empresa (máquina, equipo)</option>' +
-        '<option value="mono">Soy monotributista</option>' +
-        '<option value="particular">Uso particular (persona)</option></select></div>' +
-      '<details><summary>Más opciones</summary>' +
-        '<div class="ic-f" data-only="impo"><label class="ic-chk"><input type="checkbox" id="ic-merco"> Origen Mercosur (sin tasa de estadística)</label></div>' +
-        '<div class="ic-row"><div class="ic-f"><label for="ic-desp">Despachante (% del valor)</label><input type="number" id="ic-desp" min="0" step="0.1" value="0"></div>' +
-        '<div class="ic-f"><label for="ic-gastos">Otros gastos (USD)</label><input type="number" id="ic-gastos" min="0" step="25" value="0"></div></div>' +
-        '<div class="ic-row"><div class="ic-f" data-only="impo"><label for="ic-iibb">Percepción IIBB (%)</label><input type="number" id="ic-iibb" min="0" max="10" step="0.5" value="0"><div class="ic-hint">Depende de tu provincia.</div></div>' +
-        '<div class="ic-f"><label for="ic-tc">Dólar (ARS)</label><input type="number" id="ic-tc" min="0" step="10" value=""><div class="ic-hint">Para verlo en pesos.</div></div></div>' +
-      '</details>' +
+        '<input id="ic-prod" autocomplete="off" placeholder="Ej.: anafe, toallas, miel…"><div class="ic-sug" id="ic-sug"></div>' +
+        '<div class="ic-hint" id="ic-prod-hint">Escribilo y elegilo de la lista: completamos el derecho solo.</div></div>' +
+      '<div class="ic-row">' + campo('cant', 'ic-cant', 'Cantidad', num('ic-cant', 500, 50, 1)) +
+        campo('pu', 'ic-pu', '<span id="ic-pu-l">Precio c/u (USD)</span>', num('ic-pu', 10, 0.1)) + '</div>' +
+      '<div class="ic-hint" id="ic-fob-tot" style="margin:-6px 0 6px"></div>' +
+      '<div data-only="impo">' +
+        '<div class="ic-step"><b>2</b>Traerlo hasta Argentina</div>' +
+        campo('flete', 'ic-flete', 'Flete internacional (USD)', num('ic-flete', REF.flete, 25)) +
+        '<details><summary>Seguro y gastos en origen</summary><div class="ic-row">' +
+          campo('seg', 'ic-seg', 'Seguro (%)', num('ic-seg', REF.seguro, 0.1)) +
+          campo('orig', 'ic-orig', 'En origen (USD)', num('ic-orig', 0, 25)) + '</div></details>' +
+        '<div class="ic-step"><b>3</b>Impuestos en la aduana</div>' +
+        '<div class="ic-row">' + campo('der', 'ic-der', 'Derecho (%)', '<input type="number" inputmode="decimal" id="ic-der" min="0" max="35" step="0.1" value="20">') +
+          campo('iva', 'ic-iva', 'IVA', '<select id="ic-iva"><option value="21">21%</option><option value="10.5">10,5%</option></select>') + '</div>' +
+        campo('cond', 'ic-cond', '¿Para qué importás?', '<select id="ic-cond">' +
+          '<option value="reventa">Para revender (responsable inscripto)</option>' +
+          '<option value="uso">Bien de uso de mi empresa (máquina, equipo)</option>' +
+          '<option value="mono">Soy monotributista</option>' +
+          '<option value="particular">Uso particular (persona)</option></select>') +
+        '<details><summary>Ingresos Brutos y Mercosur</summary>' +
+          campo('iibb', 'ic-iibb', 'Percepción IIBB (%)', num('ic-iibb', REF.iibb, 0.5)) +
+          '<div class="ic-f"><label class="ic-chk"><input type="checkbox" id="ic-merco"> Viene de un país del Mercosur (sin tasa de estadística)</label></div></details>' +
+        '<div class="ic-step"><b>4</b>Gastos en Argentina ' + qb('gastos') + '</div>' + ayuda('gastos') +
+        '<label class="ic-chk" style="margin-bottom:8px"><input type="checkbox" id="ic-gon" checked> Sumar gastos de despachante, depósito, puerto y banco</label>' +
+        '<div class="ic-gsum" id="ic-gsum-w"><span>Referencia (' + REF.fecha + ')</span><b id="ic-gsum"></b></div>' +
+        '<details id="ic-gdet"><summary>Ver y editar cada gasto</summary><div class="ic-gl">' + gl + '</div>' +
+          '<div class="ic-hint">Son valores de una cotización real para 5 cajas desde China. Reemplazalos por los de tu despachante.</div></details>' +
+      '</div>' +
+      '<div data-only="expo" hidden>' +
+        '<div class="ic-step"><b>2</b>Derechos y reintegro</div>' +
+        '<div class="ic-row">' + campo('de', 'ic-de', 'Derecho expo (%)', num('ic-de', 0, 0.1)) + campo('re', 'ic-re', 'Reintegro (%)', num('ic-re', 0, 0.05)) + '</div>' +
+        '<div class="ic-step"><b>3</b>Gastos ' + qb('gexpo') + '</div>' + ayuda('gexpo') +
+        '<div class="ic-row"><div class="ic-f"><label for="ic-desp">Despachante (% del valor)</label>' + num('ic-desp', 0, 0.1) + '</div>' +
+        '<div class="ic-f"><label for="ic-gastos">Otros gastos (USD)</label>' + num('ic-gastos', 0, 25) + '</div></div>' +
+      '</div>' +
+      '<details><summary>Ver en pesos</summary>' + campo('tc', 'ic-tc', 'Dólar (ARS)', '<input type="number" inputmode="decimal" id="ic-tc" min="0" step="10" value="">') + '</details>' +
     '</form><div>' +
-      '<div class="ic-tiles"><div class="ic-tile cash"><div class="ic-lbl" id="ic-cash-l"></div><div class="ic-amt" id="ic-cash">—</div><div class="ic-sub" id="ic-cash-s"></div></div>' +
-      '<div class="ic-tile real"><div class="ic-lbl" id="ic-real-l"></div><div class="ic-amt" id="ic-real">—</div><div class="ic-sub" id="ic-real-s"></div></div></div>' +
-      '<div class="ic-msg" id="ic-msg"></div>' +
-      '<div class="ic-card"><table><tbody id="ic-rows"></tbody></table></div>' +
-      '<p class="ic-note" id="ic-note"></p>' +
-    '</div></div>';
+      '<div class="ic-tiles">' +
+        '<div class="ic-tile cash"><div class="ic-lbl" id="ic-cash-l">Plata que necesitás</div><div class="ic-amt" id="ic-cash"></div><div class="ic-sub" id="ic-cash-s"></div></div>' +
+        '<div class="ic-tile real"><div class="ic-lbl" id="ic-real-l">Costo real</div><div class="ic-amt" id="ic-real"></div><div class="ic-sub" id="ic-real-s"></div></div>' +
+        '<div class="ic-tile unit"><div class="ic-lbl" id="ic-unit-l">Por unidad</div><div class="ic-amt" id="ic-unit"></div><div class="ic-sub" id="ic-unit-s"></div></div>' +
+      '</div>' +
+      '<div class="ic-msg" id="ic-msg"></div><div class="ic-msg warn" id="ic-msg2" hidden></div>' +
+      '<div class="ic-card" style="padding:12px 16px"><table><tbody id="ic-rows"></tbody></table></div>' +
+      '<div class="ic-note" id="ic-note"></div>' +
+    '</div></div>' +
+    '<div class="ic-glos" id="ic-glosario"><h3>Glosario: qué es cada número y de dónde sacarlo</h3>' +
+      '<p>Para llegar al despachante sabiendo qué pedir.</p><dl>' +
+      ['cant', 'pu', 'orig', 'flete', 'seg', 'va', 'der', 'te', 'iva', 'cond', 'iibb', 'gastos', 'res', 'de', 're', 'tc'].map(function (k) {
+        return '<div><dt>' + G[k][0] + '</dt><dd>' + G[k][1] + '<span>De dónde sacarlo: ' + G[k][2] + '</span></dd></div>';
+      }).join('') + '</dl></div>';
+
+  root.addEventListener('click', function (e) {
+    var b = e.target.closest('.ic-q'); if (!b) return;
+    var h = $('ic-h-' + b.getAttribute('data-gl')); if (!h) return;
+    h.hidden = !h.hidden; b.setAttribute('aria-expanded', String(!h.hidden));
+  });
 
   function $(id) { return document.getElementById(id); }
   function n(id) { var v = parseFloat($(id).value); return isNaN(v) ? 0 : v; }
   function usd(x) { return 'USD ' + Math.round(x).toLocaleString('es-AR'); }
+  function usdU(x) { return 'USD ' + x.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
   function u2(x) { return x.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
   function pc(x) { return String(x).replace('.', ','); }
   function esc(t) { return String(t == null ? '' : t).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
-  function tope(cif) { for (var i = 0; i < T.tasaEst.topes.length; i++) if (cif <= T.tasaEst.topes[i][0]) return T.tasaEst.topes[i][1]; return Infinity; }
+  function tope(v) { for (var i = 0; i < T.tasaEst.topes.length; i++) if (v <= T.tasaEst.topes[i][0]) return T.tasaEst.topes[i][1]; return Infinity; }
   function row(l, v, o) { o = o || {}; return '<tr' + (o.c ? ' class="' + o.c + '"' : '') + '><td>' + l + (o.cf ? '<span class="cf">' + (o.cft || 'se recupera') + '</span>' : '') + '</td><td class="n">' + u2(v) + '</td></tr>'; }
   function grp(l) { return '<tr class="g"><td colspan="2">' + l + '</td></tr>'; }
   function ars(x) { var tc = n('ic-tc'); return tc ? ' · ARS ' + Math.round(x * tc).toLocaleString('es-AR') : ''; }
@@ -111,62 +202,95 @@
     modo = m;
     [].forEach.call(root.querySelectorAll('.ic-mode button'), function (b) { b.classList.toggle('on', b.getAttribute('data-m') === m); });
     [].forEach.call(root.querySelectorAll('[data-only]'), function (el) { el.hidden = el.getAttribute('data-only') !== m; });
-    $('ic-fob-l').textContent = m === 'impo' ? 'Valor de la mercadería (FOB, USD)' : 'Precio de venta (FOB, USD)';
+    $('ic-pu-l').textContent = m === 'impo' ? 'Precio c/u (USD)' : 'Venta c/u (USD)';
     calc();
   }
 
-  function calcImpo() {
-    var fob = n('ic-fob'), flete = n('ic-flete'), cif = fob + flete, cond = $('ic-cond').value;
-    var der = cif * n('ic-der') / 100;
-    var te = $('ic-merco').checked ? 0 : Math.min(cif * T.tasaEst.pct / 100, tope(cif));
-    var base = cif + der + te;
-    var reducida = $('ic-iva').value === '10.5';
+  function gastosArg() {
+    if (!$('ic-gon').checked) return { items: [], total: 0 };
+    var items = REF.gastos.map(function (g) { return [g[1], n('ic-g-' + g[0])]; }).filter(function (x) { return x[1]; });
+    return { items: items, total: items.reduce(function (s, x) { return s + x[1]; }, 0) };
+  }
+
+  // Costo de importación para una cantidad dada (para mostrar cuánto baja por unidad con más volumen)
+  function costoImpo(cant) {
+    var cond = $('ic-cond').value, reducida = $('ic-iva').value === '10.5';
+    var fob = cant * n('ic-pu'), orig = n('ic-orig'), flete = n('ic-flete');
+    var seg = (fob + orig + flete) * n('ic-seg') / 100, va = fob + orig + flete + seg;
+    var der = va * n('ic-der') / 100;
+    var te = $('ic-merco').checked ? 0 : Math.min(va * T.tasaEst.pct / 100, tope(va));
+    var base = va + der + te;
     var iva = base * parseFloat($('ic-iva').value) / 100;
     var pIva = cond === 'particular' ? 0 : base * (reducida ? T.percIva.reducida : T.percIva.general) / 100;
     var pGan = cond === 'uso' ? 0 : base * (cond === 'particular' ? T.percGan.consumo : T.percGan.general) / 100;
-    var iibb = base * n('ic-iibb') / 100;
-    var desp = cif * n('ic-desp') / 100, gastos = n('ic-gastos');
+    var iibb = cond === 'particular' ? 0 : base * n('ic-iibb') / 100;
+    var g = gastosArg(), ivaG = g.total * 0.21;
     var recupera = cond === 'reventa' || cond === 'uso';
-    var percep = iva + pIva + pGan + iibb;
-    var cash = cif + der + te + percep + desp + gastos;
+    var percep = iva + pIva + pGan + iibb + ivaG;
+    var cash = va + der + te + iva + pIva + pGan + iibb + g.total + ivaG;
     var real = cash - (recupera ? percep : 0);
+    return { cond: cond, reducida: reducida, fob: fob, orig: orig, flete: flete, seg: seg, va: va, der: der, te: te, iva: iva, pIva: pIva, pGan: pGan, iibb: iibb,
+      g: g, ivaG: ivaG, recupera: recupera, percep: percep, cash: cash, real: real, unit: cant ? real / cant : 0 };
+  }
 
-    $('ic-cash-l').textContent = 'Plata que necesitás'; $('ic-real-l').textContent = 'Costo real';
-    $('ic-cash').textContent = usd(cash); $('ic-real').textContent = usd(real);
-    $('ic-cash-s').textContent = (fob ? '+' + Math.round((cash / fob - 1) * 100) + '% sobre el FOB' : '') + ars(cash);
-    $('ic-real-s').textContent = (fob ? '+' + Math.round((real / fob - 1) * 100) + '% sobre el FOB' : '') + ars(real);
-    $('ic-msg').innerHTML = recupera
-      ? '<strong>' + usd(percep) + '</strong> son IVA y percepciones: los pagás en la aduana pero los recuperás como crédito fiscal. Necesitás tenerlos, pero no son costo.'
-      : (cond === 'mono' ? 'Como <strong>monotributista</strong> no recuperás el IVA ni las percepciones: todo lo que pagás en la aduana es costo.'
+  function calcImpo() {
+    var cant = n('ic-cant'), c = costoImpo(cant);
+    $('ic-fob-tot').textContent = cant && n('ic-pu') ? 'Mercadería: ' + usd(c.fob) + ' FOB' : '';
+    $('ic-gsum').textContent = usd(c.g.total) + (c.g.total ? ' + IVA' : '');
+    $('ic-gsum-w').hidden = !$('ic-gon').checked; $('ic-gdet').hidden = !$('ic-gon').checked;
+    $('ic-cash-l').textContent = 'Plata que necesitás'; $('ic-real-l').textContent = 'Costo real'; $('ic-unit-l').textContent = 'Costo por unidad';
+    $('ic-cash').textContent = usd(c.cash); $('ic-real').textContent = usd(c.real); $('ic-unit').textContent = cant ? usdU(c.unit) : '—';
+    $('ic-cash-s').textContent = 'todo lo que pagás' + ars(c.cash);
+    $('ic-real-s').textContent = (c.recupera ? 'después de recuperar IVA y percepciones' : 'no recuperás IVA ni percepciones') + ars(c.real);
+    $('ic-unit-s').textContent = (n('ic-pu') ? 'pagás ' + usdU(n('ic-pu')) + ' FOB' : '') + (n('ic-tc') && cant ? ' · ARS ' + Math.round(c.unit * n('ic-tc')).toLocaleString('es-AR') : '');
+    $('ic-msg').innerHTML = c.recupera
+      ? '<strong>' + usd(c.percep) + '</strong> son IVA y percepciones: los pagás al importar pero los recuperás como crédito fiscal. Necesitás tener esa plata, pero no es costo.'
+      : (c.cond === 'mono' ? 'Como <strong>monotributista</strong> no recuperás el IVA ni las percepciones: todo lo que pagás es costo.'
         : 'En <strong>uso particular</strong> no hay crédito fiscal: todo lo que pagás es costo.');
-    var h = row('Mercadería (FOB)', fob) + row('Flete y seguro', flete) + row('Valor CIF', cif, { c: 't' });
-    h += grp('Tributos de importación');
-    h += row('Derecho de importación (' + pc(n('ic-der')) + '%)', der);
-    h += row('Tasa de estadística' + ($('ic-merco').checked ? ' (Mercosur: no paga)' : (te < cif * 0.03 - 0.005 ? ' (con tope)' : ' (3%)')), te);
-    h += row('IVA (' + pc($('ic-iva').value) + '%)', iva, { cf: recupera });
-    if (pIva) h += row('Percepción de IVA (' + (reducida ? T.percIva.reducida : T.percIva.general) + '%)', pIva, { cf: recupera });
-    if (pGan) h += row('Percepción de Ganancias (' + (cond === 'particular' ? T.percGan.consumo : T.percGan.general) + '%)', pGan, { cf: recupera });
-    if (iibb) h += row('Percepción de IIBB', iibb, { cf: recupera });
-    if (desp || gastos) { h += grp('Gastos'); if (desp) h += row('Despachante', desp); if (gastos) h += row('Otros gastos', gastos); }
-    h += grp('Resultado') + row('Plata que necesitás', cash, { c: 't' });
-    if (recupera) h += row('Se recupera como crédito fiscal', -percep);
-    h += row('Costo real', real, { c: 't' });
+    var fijo = c.g.total + (c.recupera ? 0 : c.ivaG), m2 = $('ic-msg2');
+    if (cant && c.real && fijo / c.real > 0.2) {
+      var c2 = costoImpo(cant * 2);
+      m2.innerHTML = 'Los <strong>gastos en Argentina son el ' + Math.round(fijo / c.real * 100) + '% de tu costo</strong> y casi no cambian con el volumen. Con el doble de unidades (' + (cant * 2).toLocaleString('es-AR') + '), cada una te costaría <strong>' + usdU(c2.unit) + '</strong> en vez de ' + usdU(c.unit) + '.';
+      m2.hidden = false;
+    } else m2.hidden = true;
+    var h = grp('Lo que pagás afuera') + row('Mercadería FOB (' + cant.toLocaleString('es-AR') + ' × ' + u2(n('ic-pu')) + ')', c.fob);
+    if (c.orig) h += row('Gastos en origen', c.orig);
+    h += row('Flete internacional', c.flete) + row('Seguro (' + pc(n('ic-seg')) + '%)', c.seg) + row('Valor en aduana (CIF)', c.va, { c: 't' });
+    h += grp('Impuestos en la aduana');
+    h += row('Derecho de importación (' + pc(n('ic-der')) + '%)', c.der);
+    h += row('Tasa de estadística' + ($('ic-merco').checked ? ' (Mercosur: no paga)' : (c.te < c.va * 0.03 - 0.005 ? ' (con tope)' : ' (3%)')), c.te);
+    h += row('IVA (' + pc($('ic-iva').value) + '%)', c.iva, { cf: c.recupera });
+    if (c.pIva) h += row('Percepción de IVA (' + (c.reducida ? T.percIva.reducida : T.percIva.general) + '%)', c.pIva, { cf: c.recupera });
+    if (c.pGan) h += row('Percepción de Ganancias (' + (c.cond === 'particular' ? T.percGan.consumo : T.percGan.general) + '%)', c.pGan, { cf: c.recupera });
+    if (c.iibb) h += row('Percepción de Ingresos Brutos (' + pc(n('ic-iibb')) + '%)', c.iibb, { cf: c.recupera });
+    if (c.g.total) {
+      h += grp('Gastos en Argentina (referencia)');
+      c.g.items.forEach(function (x) { h += row(x[0], x[1]); });
+      h += row('IVA sobre los gastos (21%)', c.ivaG, { cf: c.recupera });
+    }
+    h += grp('Resultado') + row('Plata que necesitás', c.cash, { c: 't' });
+    if (c.recupera) h += row('Se recupera como crédito fiscal', -c.percep);
+    h += row('Costo real', c.real, { c: 't' });
+    if (cant) h += row('Costo por unidad', c.unit, { c: 't' });
     $('ic-rows').innerHTML = h;
   }
 
   function calcExpo() {
-    var fob = n('ic-fob'), de = fob * n('ic-de') / 100, re = fob * n('ic-re') / 100;
+    var cant = n('ic-cant'), fob = cant * n('ic-pu'), de = fob * n('ic-de') / 100, re = fob * n('ic-re') / 100;
     var desp = fob * n('ic-desp') / 100, gastos = n('ic-gastos');
     var neto = fob - de - desp - gastos, total = neto + re;
-    $('ic-cash-l').textContent = 'Te queda al cobrar'; $('ic-real-l').textContent = 'Con el reintegro';
-    $('ic-cash').textContent = usd(neto); $('ic-real').textContent = usd(total);
+    $('ic-fob-tot').textContent = fob ? 'Venta total: ' + usd(fob) + ' FOB' : '';
+    $('ic-cash-l').textContent = 'Te queda al cobrar'; $('ic-real-l').textContent = 'Con el reintegro'; $('ic-unit-l').textContent = 'Por unidad';
+    $('ic-cash').textContent = usd(neto); $('ic-real').textContent = usd(total); $('ic-unit').textContent = cant ? usdU(total / cant) : '—';
     $('ic-cash-s').textContent = (fob ? Math.round(neto / fob * 100) + '% del precio de venta' : '') + ars(neto);
     $('ic-real-s').textContent = (fob ? Math.round(total / fob * 100) + '% del precio de venta' : '') + ars(total);
+    $('ic-unit-s').textContent = 'con el reintegro';
+    $('ic-msg2').hidden = true;
     $('ic-msg').innerHTML = re
       ? 'El <strong>reintegro (' + usd(re) + ')</strong> lo cobrás después, no al embarcar: no cuentes con esa plata para la operación.'
       : (de ? 'Este producto paga <strong>derecho de exportación</strong>. Si sos MiPyME con certificado, puede que no lo pagues hasta USD 500.000 por año (Decreto 302/2021): consultalo.'
         : 'Sin derecho de exportación ni reintegro: lo que vendés, menos tus gastos.');
-    var h = row('Precio de venta (FOB)', fob);
+    var h = row('Precio de venta FOB (' + cant.toLocaleString('es-AR') + ' × ' + u2(n('ic-pu')) + ')', fob);
     h += grp('Al exportar');
     h += row('Derecho de exportación (' + pc(n('ic-de')) + '%)', de ? -de : 0);
     if (desp) h += row('Despachante', -desp);
@@ -180,15 +304,16 @@
 
   function calc() { if (modo === 'impo') calcImpo(); else calcExpo(); }
 
-  $('ic-note').innerHTML = 'Aproximado orientativo, no asesoramiento. No incluye licencias ni certificaciones (ANMAT, SENASA, seguridad eléctrica, ENACOM), ' +
-    'impuestos internos ni regímenes especiales (p. ej. la exclusión de percepciones para canasta básica y MiPyMEs con certificado, RG ARCA 5490, prorrogada al 31/12/2026 por la RG 5868). ' +
+  $('ic-note').innerHTML = 'Aproximado orientativo, no asesoramiento. Los gastos en Argentina, el flete, el seguro y la percepción de Ingresos Brutos son valores de referencia de una cotización real (' + REF.fecha + '), no datos oficiales: reemplazalos por los tuyos. ' +
+    'No incluye licencias ni certificaciones (ANMAT, SENASA, seguridad eléctrica, ENACOM), impuestos internos ni regímenes especiales (p. ej. la exclusión de percepciones para canasta básica y MiPyMEs con certificado, RG ARCA 5490, prorrogada al 31/12/2026 por la RG 5868). ' +
     'En exportación, el derecho y el reintegro se calculan sobre el FOB de forma simplificada. ' +
     'Alícuotas verificadas el ' + T.verificado.split('-').reverse().join('/') + ': tasa de estadística — ' + T.tasaEst.fuente + ' Percepción de IVA — ' + T.percIva.fuente + ' Percepción de Ganancias — ' + T.percGan.fuente +
     ' Derechos y reintegros: VUCE (productos analizados) y Arancel Integrado de ARCA (resto de las posiciones). Confirmá los números con tu despachante antes de operar.';
 
-  ['ic-fob', 'ic-flete', 'ic-der', 'ic-iva', 'ic-cond', 'ic-merco', 'ic-desp', 'ic-gastos', 'ic-iibb', 'ic-tc', 'ic-de', 'ic-re'].forEach(function (id) {
-    $(id).addEventListener('input', calc); $(id).addEventListener('change', calc);
-  });
+  ['ic-cant', 'ic-pu', 'ic-orig', 'ic-flete', 'ic-seg', 'ic-der', 'ic-iva', 'ic-cond', 'ic-merco', 'ic-iibb', 'ic-gon', 'ic-desp', 'ic-gastos', 'ic-tc', 'ic-de', 'ic-re']
+    .concat(REF.gastos.map(function (g) { return 'ic-g-' + g[0]; })).forEach(function (id) {
+      $(id).addEventListener('input', calc); $(id).addEventListener('change', calc);
+    });
   [].forEach.call(root.querySelectorAll('.ic-mode button'), function (b) { b.addEventListener('click', function () { setModo(b.getAttribute('data-m')); }); });
 
   /* ── Autocompletado ───────────────────────────────────────────────── */
