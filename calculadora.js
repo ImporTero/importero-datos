@@ -34,7 +34,10 @@
   /* Glosario: qué es cada cosa y de dónde sacar el número */
   var G = {
     cant: ['Cantidad', 'Las unidades del pedido. Sirve para ver cuánto te cuesta cada una y compararlo con el precio al que la vas a vender.', 'De la cotización del proveedor (el pedido mínimo suele estar ahí).'],
-    pu: ['Precio por unidad (FOB)', 'El precio de cada unidad con la mercadería cargada en el barco, en el puerto de salida: eso quiere decir FOB, “libre a bordo”. Si importás, es lo que le pagás al proveedor; si exportás, lo que te paga el comprador.', 'Si importás, de la cotización del proveedor (si te cotiza EXW, en fábrica, el traslado hasta el puerto ponelo en “Gastos en origen”). Si exportás, tu precio de venta.'],
+    pu: ['Precio por unidad', 'Lo que vale cada unidad según el incoterm de la cotización. Si importás, es lo que le pagás al proveedor; si exportás, lo que te paga el comprador.', 'De la cotización del proveedor (si importás) o de tu precio de venta (si exportás). Elegí abajo el incoterm con el que está cotizado.'],
+    inc: ['Incoterm', 'La regla que dice hasta dónde paga el vendedor y desde dónde pagás vos (Incoterms 2020, de la Cámara de Comercio Internacional). EXW: en la fábrica, todo lo demás corre por cuenta del comprador. FOB: cargado en el barco en el puerto de salida; el flete y el seguro los paga el comprador. CFR: incluye el flete hasta el puerto de destino, el seguro no. CIF: incluye flete y seguro. FCA, CPT y CIP son los equivalentes de FOB, CFR y CIF para carga aérea o contenedor. Si te cotizan DAP o DDP, pedí el precio FOB o CIF: en Argentina el importador sos vos y la aduana calcula sobre el valor CIF.', 'Figura en la cotización al lado del precio (“FOB Ningbo”, “CIF Buenos Aires”). Si no lo dice, preguntalo antes de comparar precios: un FOB y un CIF no se comparan directo.'],
+    xflete: ['Flete que pagás vos', 'Si vendés CFR o CIF (o CPT y CIP), el flete hasta destino lo contratás y pagás vos, y se descuenta de lo que cobrás. El derecho de exportación y el reintegro se calculan sobre el valor FOB, sin flete ni seguro.', 'Pedile cotización a un agente de carga (forwarder).'],
+    xseg: ['Seguro que pagás vos', 'Si vendés CIF o CIP, el seguro de la carga también corre por tu cuenta.', 'Del agente de carga o de una aseguradora.'],
     orig: ['Gastos en origen', 'Lo que pagás aparte antes de que la carga salga del país de origen: traslado al puerto, inspección, documentos. Se suman al valor en aduana, así que también pagan impuestos.', 'Del proveedor o de tu agente de carga.'],
     flete: ['Flete internacional', 'El transporte hasta Argentina. En pedidos chicos la carga viaja “LCL”: comparte contenedor con otras y se cobra por volumen (m³) o por peso.', 'Pedile cotización a un agente de carga (forwarder) con las medidas y el peso de las cajas. Referencia: USD ' + REF.flete + ' por 5 cajas (0,12 m³) desde China, ' + REF.fecha + '.'],
     seg: ['Seguro', 'El seguro de la carga durante el viaje. Forma parte del valor en aduana.', 'Del agente de carga o de una aseguradora. Referencia: ' + String(REF.seguro).replace('.', ',') + '% de la mercadería más el flete.'],
@@ -135,12 +138,18 @@
         '<div class="ic-hint" id="ic-prod-hint">Escribilo y elegilo de la lista: completamos el derecho solo.</div></div>' +
       '<div class="ic-row">' + campo('cant', 'ic-cant', 'Cantidad', num('ic-cant', 500, 50, 1)) +
         campo('pu', 'ic-pu', '<span id="ic-pu-l">Precio c/u (USD)</span>', num('ic-pu', 10, 0.1)) + '</div>' +
+      campo('inc', 'ic-inc', 'Incoterm del precio', '<select id="ic-inc">' +
+        '<option value="EXW">EXW · en fábrica</option><option value="FCA">FCA · entregado al transportista</option>' +
+        '<option value="FOB" selected>FOB · cargado en el barco</option><option value="CFR">CFR · con flete</option>' +
+        '<option value="CPT">CPT · con flete (avión o contenedor)</option><option value="CIF">CIF · con flete y seguro</option>' +
+        '<option value="CIP">CIP · con flete y seguro (avión o contenedor)</option></select>') +
       '<div class="ic-hint" id="ic-fob-tot" style="margin:-6px 0 6px"></div>' +
       '<div data-only="impo">' +
         '<div class="ic-step"><b>2</b>Traerlo hasta Argentina</div>' +
-        campo('flete', 'ic-flete', 'Flete internacional (USD)', num('ic-flete', REF.flete, 25)) +
-        '<details><summary>Seguro y gastos en origen</summary><div class="ic-row">' +
-          campo('seg', 'ic-seg', 'Seguro (%)', num('ic-seg', REF.seguro, 0.1)) +
+        '<div class="ic-hint ok" id="ic-inc-h" hidden style="margin:0 0 10px"></div>' +
+        '<div id="ic-flete-w">' + campo('flete', 'ic-flete', 'Flete internacional (USD)', num('ic-flete', REF.flete, 25)) + '</div>' +
+        '<details id="ic-sdet"><summary>Seguro y gastos en origen</summary><div class="ic-row">' +
+          '<div id="ic-seg-w">' + campo('seg', 'ic-seg', 'Seguro (%)', num('ic-seg', REF.seguro, 0.1)) + '</div>' +
           campo('orig', 'ic-orig', 'En origen (USD)', num('ic-orig', 0, 25)) + '</div></details>' +
         '<div class="ic-step"><b>3</b>Impuestos en la aduana</div>' +
         '<div class="ic-row">' + campo('der', 'ic-der', 'Derecho (%)', '<input type="number" inputmode="decimal" id="ic-der" min="0" max="35" step="0.1" value="20">') +
@@ -162,6 +171,8 @@
       '<div data-only="expo" hidden>' +
         '<div class="ic-step"><b>2</b>Derechos y reintegro</div>' +
         '<div class="ic-row">' + campo('de', 'ic-de', 'Derecho expo (%)', num('ic-de', 0, 0.1)) + campo('re', 'ic-re', 'Reintegro (%)', num('ic-re', 0, 0.05)) + '</div>' +
+        '<div class="ic-row" id="ic-xc" hidden>' + campo('xflete', 'ic-xflete', 'Flete (USD)', num('ic-xflete', 0, 25)) +
+          '<div id="ic-xseg-w">' + campo('xseg', 'ic-xseg', 'Seguro (USD)', num('ic-xseg', 0, 5)) + '</div></div>' +
         '<div class="ic-step"><b>3</b>Gastos ' + qb('gexpo') + '</div>' + ayuda('gexpo') +
         '<div class="ic-row"><div class="ic-f"><label for="ic-desp">Despachante (% del valor)</label>' + num('ic-desp', 0, 0.1) + '</div>' +
         '<div class="ic-f"><label for="ic-gastos">Otros gastos (USD)</label>' + num('ic-gastos', 0, 25) + '</div></div>' +
@@ -180,7 +191,7 @@
     '</div></div>' +
     '<div class="ic-glos" id="ic-glosario"><h3>Glosario: qué es cada número y de dónde sacarlo</h3>' +
       '<p>Para llegar al despachante sabiendo qué pedir.</p><dl>' +
-      ['cant', 'pu', 'orig', 'flete', 'seg', 'va', 'der', 'te', 'iva', 'cond', 'iibb', 'gastos', 'res', 'de', 're', 'tc'].map(function (k) {
+      ['cant', 'pu', 'inc', 'orig', 'flete', 'seg', 'va', 'der', 'te', 'iva', 'cond', 'iibb', 'gastos', 'res', 'de', 're', 'tc'].map(function (k) {
         return '<div><dt>' + G[k][0] + '</dt><dd>' + G[k][1] + '<span>De dónde sacarlo: ' + G[k][2] + '</span></dd></div>';
       }).join('') + '</dl></div>';
 
@@ -220,8 +231,9 @@
   // Costo de importación para una cantidad dada (para mostrar cuánto baja por unidad con más volumen)
   function costoImpo(cant) {
     var cond = $('ic-cond').value, reducida = $('ic-iva').value === '10.5';
-    var fob = cant * n('ic-pu'), orig = n('ic-orig'), flete = n('ic-flete');
-    var seg = (fob + orig + flete) * n('ic-seg') / 100, va = fob + orig + flete + seg;
+    var inc = $('ic-inc').value, conFlete = /^(CFR|CPT|CIF|CIP)$/.test(inc), conSeg = /^(CIF|CIP)$/.test(inc);
+    var fob = cant * n('ic-pu'), orig = n('ic-orig'), flete = conFlete ? 0 : n('ic-flete');
+    var seg = conSeg ? 0 : (fob + orig + flete) * n('ic-seg') / 100, va = fob + orig + flete + seg;
     var der = va * n('ic-der') / 100;
     var te = $('ic-merco').checked ? 0 : Math.min(va * T.tasaEst.pct / 100, tope(va));
     var base = va + der + te;
@@ -234,20 +246,27 @@
     var percep = iva + pIva + pGan + iibb + ivaG;
     var cash = va + der + te + iva + pIva + pGan + iibb + g.total + ivaG;
     var real = cash - (recupera ? percep : 0);
-    return { cond: cond, reducida: reducida, fob: fob, orig: orig, flete: flete, seg: seg, va: va, der: der, te: te, iva: iva, pIva: pIva, pGan: pGan, iibb: iibb,
+    return { inc: inc, conFlete: conFlete, conSeg: conSeg, cond: cond, reducida: reducida, fob: fob, orig: orig, flete: flete, seg: seg, va: va, der: der, te: te, iva: iva, pIva: pIva, pGan: pGan, iibb: iibb,
       g: g, ivaG: ivaG, recupera: recupera, percep: percep, cash: cash, real: real, unit: cant ? real / cant : 0 };
   }
 
   function calcImpo() {
     var cant = n('ic-cant'), c = costoImpo(cant);
-    $('ic-fob-tot').textContent = cant && n('ic-pu') ? 'Mercadería: ' + usd(c.fob) + ' FOB' : '';
+    $('ic-fob-tot').textContent = cant && n('ic-pu') ? 'Mercadería: ' + usd(c.fob) + ' ' + c.inc : '';
+    $('ic-flete-w').hidden = c.conFlete; $('ic-seg-w').hidden = c.conSeg;
+    var ih = $('ic-inc-h');
+    ih.textContent = c.inc === 'EXW' ? 'Con EXW pagás aparte el traslado hasta el puerto y el despacho de exportación en origen: cargalo en “Gastos en origen”.'
+      : c.conSeg ? 'Con ' + c.inc + ' el precio ya incluye el flete y el seguro hasta Argentina.'
+      : c.conFlete ? 'Con ' + c.inc + ' el precio ya incluye el flete hasta Argentina; el seguro lo sumás vos.' : '';
+    ih.hidden = !ih.textContent;
+    if (c.inc === 'EXW') $('ic-sdet').open = true;
     $('ic-gsum').textContent = usd(c.g.total) + (c.g.total ? ' + IVA' : '');
     $('ic-gsum-w').hidden = !$('ic-gon').checked; $('ic-gdet').hidden = !$('ic-gon').checked;
     $('ic-cash-l').textContent = 'Plata que necesitás'; $('ic-real-l').textContent = 'Costo real'; $('ic-unit-l').textContent = 'Costo por unidad';
     $('ic-cash').textContent = usd(c.cash); $('ic-real').textContent = usd(c.real); $('ic-unit').textContent = cant ? usdU(c.unit) : '—';
     $('ic-cash-s').textContent = 'todo lo que pagás' + ars(c.cash);
     $('ic-real-s').textContent = (c.recupera ? 'después de recuperar IVA y percepciones' : 'no recuperás IVA ni percepciones') + ars(c.real);
-    $('ic-unit-s').textContent = (n('ic-pu') ? 'pagás ' + usdU(n('ic-pu')) + ' FOB' : '') + (n('ic-tc') && cant ? ' · ARS ' + Math.round(c.unit * n('ic-tc')).toLocaleString('es-AR') : '');
+    $('ic-unit-s').textContent = (n('ic-pu') ? 'pagás ' + usdU(n('ic-pu')) + ' ' + c.inc : '') + (n('ic-tc') && cant ? ' · ARS ' + Math.round(c.unit * n('ic-tc')).toLocaleString('es-AR') : '');
     $('ic-msg').innerHTML = c.recupera
       ? '<strong>' + usd(c.percep) + '</strong> son IVA y percepciones: los pagás al importar pero los recuperás como crédito fiscal. Necesitás tener esa plata, pero no es costo.'
       : (c.cond === 'mono' ? 'Como <strong>monotributista</strong> no recuperás el IVA ni las percepciones: todo lo que pagás es costo.'
@@ -258,9 +277,10 @@
       m2.innerHTML = 'Los <strong>gastos en Argentina son el ' + Math.round(fijo / c.real * 100) + '% de tu costo</strong> y casi no cambian con el volumen. Con el doble de unidades (' + (cant * 2).toLocaleString('es-AR') + '), cada una te costaría <strong>' + usdU(c2.unit) + '</strong> en vez de ' + usdU(c.unit) + '.';
       m2.hidden = false;
     } else m2.hidden = true;
-    var h = grp('Lo que pagás afuera') + row('Mercadería FOB (' + cant.toLocaleString('es-AR') + ' × ' + u2(n('ic-pu')) + ')', c.fob);
+    var h = grp('Lo que pagás afuera') + row('Mercadería ' + c.inc + ' (' + cant.toLocaleString('es-AR') + ' × ' + u2(n('ic-pu')) + ')', c.fob);
     if (c.orig) h += row('Gastos en origen', c.orig);
-    h += row('Flete internacional', c.flete) + row('Seguro (' + pc(n('ic-seg')) + '%)', c.seg) + row('Valor en aduana (CIF)', c.va, { c: 't' });
+    h += row(c.conFlete ? 'Flete internacional (incluido en el precio)' : 'Flete internacional', c.flete) +
+      row(c.conSeg ? 'Seguro (incluido en el precio)' : 'Seguro (' + pc(n('ic-seg')) + '%)', c.seg) + row('Valor en aduana (CIF)', c.va, { c: 't' });
     h += grp('Impuestos en la aduana');
     h += row('Derecho de importación (' + pc(n('ic-der')) + '%)', c.der);
     h += row('Tasa de estadística' + ($('ic-merco').checked ? ' (Mercosur: no paga)' : (c.te < c.va * 0.03 - 0.005 ? ' (con tope)' : ' (3%)')), c.te);
@@ -281,21 +301,29 @@
   }
 
   function calcExpo() {
-    var cant = n('ic-cant'), fob = cant * n('ic-pu'), de = fob * n('ic-de') / 100, re = fob * n('ic-re') / 100;
+    var inc = $('ic-inc').value;
+    if (inc === 'EXW') { inc = 'FOB'; $('ic-inc').value = 'FOB'; }
+    var conFlete = /^(CFR|CPT|CIF|CIP)$/.test(inc), conSeg = /^(CIF|CIP)$/.test(inc);
+    $('ic-xc').hidden = !conFlete; $('ic-xseg-w').hidden = !conSeg;
+    var cant = n('ic-cant'), venta = cant * n('ic-pu'), xfl = conFlete ? n('ic-xflete') : 0, xsg = conSeg ? n('ic-xseg') : 0;
+    var fob = venta - xfl - xsg, de = fob * n('ic-de') / 100, re = fob * n('ic-re') / 100;
     var desp = fob * n('ic-desp') / 100, gastos = n('ic-gastos');
-    var neto = fob - de - desp - gastos, total = neto + re;
-    $('ic-fob-tot').textContent = fob ? 'Venta total: ' + usd(fob) + ' FOB' : '';
+    var neto = venta - xfl - xsg - de - desp - gastos, total = neto + re;
+    $('ic-fob-tot').textContent = venta ? 'Venta total: ' + usd(venta) + ' ' + inc + (conFlete ? ' · valor FOB: ' + usd(fob) : '') : '';
     $('ic-cash-l').textContent = 'Te queda al cobrar'; $('ic-real-l').textContent = 'Con el reintegro'; $('ic-unit-l').textContent = 'Por unidad';
     $('ic-cash').textContent = usd(neto); $('ic-real').textContent = usd(total); $('ic-unit').textContent = cant ? usdU(total / cant) : '—';
-    $('ic-cash-s').textContent = (fob ? Math.round(neto / fob * 100) + '% del precio de venta' : '') + ars(neto);
-    $('ic-real-s').textContent = (fob ? Math.round(total / fob * 100) + '% del precio de venta' : '') + ars(total);
+    $('ic-cash-s').textContent = (venta ? Math.round(neto / venta * 100) + '% del precio de venta' : '') + ars(neto);
+    $('ic-real-s').textContent = (venta ? Math.round(total / venta * 100) + '% del precio de venta' : '') + ars(total);
     $('ic-unit-s').textContent = 'con el reintegro';
     $('ic-msg2').hidden = true;
     $('ic-msg').innerHTML = re
       ? 'El <strong>reintegro (' + usd(re) + ')</strong> lo cobrás después, no al embarcar: no cuentes con esa plata para la operación.'
       : (de ? 'Este producto paga <strong>derecho de exportación</strong>. Si sos MiPyME con certificado, puede que no lo pagues hasta USD 500.000 por año (Decreto 302/2021): consultalo.'
         : 'Sin derecho de exportación ni reintegro: lo que vendés, menos tus gastos.');
-    var h = row('Precio de venta FOB (' + cant.toLocaleString('es-AR') + ' × ' + u2(n('ic-pu')) + ')', fob);
+    var h = row('Precio de venta ' + inc + ' (' + cant.toLocaleString('es-AR') + ' × ' + u2(n('ic-pu')) + ')', venta);
+    if (xfl) h += row('Flete que pagás vos', -xfl);
+    if (xsg) h += row('Seguro que pagás vos', -xsg);
+    if (conFlete) h += row('Valor FOB (base del derecho y del reintegro)', fob, { c: 't' });
     h += grp('Al exportar');
     h += row('Derecho de exportación (' + pc(n('ic-de')) + '%)', de ? -de : 0);
     if (desp) h += row('Despachante', -desp);
@@ -328,7 +356,7 @@
     'Alícuotas verificadas el ' + T.verificado.split('-').reverse().join('/') + ': tasa de estadística — ' + T.tasaEst.fuente + ' Percepción de IVA — ' + T.percIva.fuente + ' Percepción de Ganancias — ' + T.percGan.fuente +
     ' Derechos y reintegros: VUCE (productos analizados) y Arancel Integrado de ARCA (resto de las posiciones). Confirmá los números con tu despachante antes de operar.';
 
-  ['ic-cant', 'ic-pu', 'ic-orig', 'ic-flete', 'ic-seg', 'ic-der', 'ic-iva', 'ic-cond', 'ic-merco', 'ic-iibb', 'ic-gon', 'ic-desp', 'ic-gastos', 'ic-tc', 'ic-de', 'ic-re']
+  ['ic-cant', 'ic-pu', 'ic-inc', 'ic-xflete', 'ic-xseg', 'ic-orig', 'ic-flete', 'ic-seg', 'ic-der', 'ic-iva', 'ic-cond', 'ic-merco', 'ic-iibb', 'ic-gon', 'ic-desp', 'ic-gastos', 'ic-tc', 'ic-de', 'ic-re']
     .concat(REF.gastos.map(function (g) { return 'ic-g-' + g[0]; })).forEach(function (id) {
       $(id).addEventListener('input', calc); $(id).addEventListener('change', calc);
     });
