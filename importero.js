@@ -336,6 +336,10 @@
     '#importero-calc .ic-glos dt{font-weight:700;font-size:13.5px;margin-bottom:4px}' +
     '#importero-calc .ic-glos dd{margin:0;font-size:13px;line-height:1.5;color:var(--c-ink)}' +
     '#importero-calc .ic-glos dd span{display:block;margin-top:5px;color:var(--c-soft)}' +
+    '#importero-calc .ic-bar{display:none}' +
+    '@media (max-width:780px){#importero-calc .ic-bar.on{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:30;align-items:center;justify-content:space-between;gap:10px;padding:10px 16px calc(10px + env(safe-area-inset-bottom));background:var(--c-green);color:#fff;border:0;width:100%;font:inherit;text-align:left;cursor:pointer;box-shadow:0 -2px 10px rgba(0,0,0,.12)}' +
+    '#importero-calc .ic-bar small{display:block;font-size:11px;opacity:.85;text-transform:uppercase;letter-spacing:.05em;font-family:"IBM Plex Mono",monospace}' +
+    '#importero-calc .ic-bar b{font-family:"IBM Plex Mono",monospace;font-size:19px}#importero-calc .ic-bar span.v{font-size:13px;font-weight:600;white-space:nowrap}}' +
     '#importero-calc [hidden]{display:none!important}';
   var st = document.createElement('style'); st.textContent = css; document.head.appendChild(st);
 
@@ -384,7 +388,8 @@
       '</div>' +
       '<details><summary>Ver en pesos</summary>' + campo('tc', 'ic-tc', 'Dólar (ARS)', '<input type="number" inputmode="decimal" id="ic-tc" min="0" step="10" value="">') + '</details>' +
     '</form><div>' +
-      '<div class="ic-tiles">' +
+      '<button type="button" class="ic-bar" id="ic-bar"><span><small id="ic-bar-l">Costo por unidad</small><b id="ic-bar-v"></b></span><span class="v">Ver resultado ↓</span></button>' +
+      '<div class="ic-tiles" id="ic-tiles">' +
         '<div class="ic-tile cash"><div class="ic-lbl" id="ic-cash-l">Plata que necesitás</div><div class="ic-amt" id="ic-cash"></div><div class="ic-sub" id="ic-cash-s"></div></div>' +
         '<div class="ic-tile real"><div class="ic-lbl" id="ic-real-l">Costo real</div><div class="ic-amt" id="ic-real"></div><div class="ic-sub" id="ic-real-s"></div></div>' +
         '<div class="ic-tile unit"><div class="ic-lbl" id="ic-unit-l">Por unidad</div><div class="ic-amt" id="ic-unit"></div><div class="ic-sub" id="ic-unit-s"></div></div>' +
@@ -522,7 +527,20 @@
     $('ic-rows').innerHTML = h;
   }
 
-  function calc() { if (modo === 'impo') calcImpo(); else calcExpo(); }
+  function calc() {
+    if (modo === 'impo') calcImpo(); else calcExpo();
+    $('ic-bar-l').textContent = $('ic-unit-l').textContent; $('ic-bar-v').textContent = $('ic-unit').textContent;
+  }
+  // Celular: mientras se completa el formulario, una barra fija muestra el resultado
+  (function () {
+    var bar = $('ic-bar'), form = root.querySelector('form.ic-card'), tiles = $('ic-tiles'), vf = false, vt = false;
+    function upd() { bar.classList.toggle('on', vf && !vt); }
+    if ('IntersectionObserver' in window) {
+      new IntersectionObserver(function (es) { vf = es[0].isIntersecting; upd(); }).observe(form);
+      new IntersectionObserver(function (es) { vt = es[0].isIntersecting; upd(); }).observe(tiles);
+    }
+    bar.addEventListener('click', function () { tiles.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+  })();
 
   $('ic-note').innerHTML = 'Aproximado orientativo, no asesoramiento. Los gastos en Argentina, el flete, el seguro y la percepción de Ingresos Brutos son valores de referencia de una cotización real (' + REF.fecha + '), no datos oficiales: reemplazalos por los tuyos. ' +
     'No incluye licencias ni certificaciones (ANMAT, SENASA, seguridad eléctrica, ENACOM), impuestos internos ni regímenes especiales (p. ej. la exclusión de percepciones para canasta básica y MiPyMEs con certificado, RG ARCA 5490, prorrogada al 31/12/2026 por la RG 5868). ' +
