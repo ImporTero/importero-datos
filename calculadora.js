@@ -129,7 +129,7 @@
   var gl = REF.gastos.map(function (g) { return '<span>' + g[1] + '</span>' + num('ic-g-' + g[0], g[2], 10); }).join('');
   root.innerHTML = '' +
     '<div class="ic-head"><h2>Calculá cuánto te sale (o cuánto te queda)</h2>' +
-    '<p>Completá los pasos. Lo que escribas en el buscador de arriba se carga acá solo. Tocá <b>?</b> en cada dato para ver qué es y de dónde sacarlo.</p></div>' +
+    '<p>Completá los pasos.' + (document.querySelector('input#ncm-q:not([type=hidden])') ? ' Lo que escribas en el buscador de arriba se carga acá solo.' : '') + ' Tocá <b>?</b> en cada dato para ver qué es y de dónde sacarlo.</p></div>' +
     '<div class="ic-grid"><form class="ic-card" onsubmit="return false">' +
       '<div class="ic-mode" role="tablist"><button type="button" data-m="impo" class="on">Importar</button><button type="button" data-m="expo">Exportar</button></div>' +
       '<div class="ic-step"><b>1</b>Qué ' + '<span data-only="impo">traés</span><span data-only="expo" hidden>vendés</span></div>' +
