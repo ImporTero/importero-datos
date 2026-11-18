@@ -140,6 +140,11 @@
           if (pi && dd) pi.value = dd.textContent.slice(0, 80);
           window.ImporteroCalc.usarNcm(calcB.getAttribute('data-calc'), parseFloat(calcB.getAttribute('data-aec')), calcB.getAttribute('data-op'));
           window.ImporteroCalc.ir();
+        } else {
+          // Home sin calculadora: la abre en su página, ya cargada con la posición.
+          var d2 = calcB.closest('.ncm-row') && calcB.closest('.ncm-row').querySelector('.ncm-tit');
+          location.href = '/calculadora/?ncm=' + encodeURIComponent(calcB.getAttribute('data-calc')) + '&a=' + encodeURIComponent(calcB.getAttribute('data-aec')) +
+            (calcB.getAttribute('data-op') ? '&op=expo' : '') + (d2 ? '&p=' + encodeURIComponent(d2.textContent.slice(0, 80)) : '');
         }
         return;
       }
