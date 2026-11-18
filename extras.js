@@ -151,6 +151,7 @@
       if (pedirB) {
         e.stopPropagation();
         var c = pedirB.getAttribute('data-pedir'); if (pedidos[c]) return; pedidos[c] = 1;
+        if (window.importeroInterno && window.importeroInterno()) { pedirB.textContent = 'Pedido ✓ (modo interno: no se envía)'; return; }
         var row = pedirB.closest('.ncm-row'), d = row && row.querySelector('.ncm-desc');
         var datos = new URLSearchParams({ tipo: 'busqueda', producto: 'NCM ' + fmt(c) + ' — ' + ((d && d.textContent) || '').slice(0, 120) + ' (búsqueda: ' + (ncmQ ? ncmQ.value : '') + ')', email: '', pagina: location.pathname });
         fetch('https://script.google.com/macros/s/AKfycby1H6sXGh0uRpU85F8n5EMxHO5GP-UAPsUII2fOiRAolYgc1VxHdQdopj3cAnw7E4PItw/exec', { method: 'POST', mode: 'no-cors', body: datos }).catch(function () {});
